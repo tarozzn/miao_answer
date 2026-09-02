@@ -1,0 +1,25 @@
+{
+  "name": "咪的答案",
+  "short_name": "咪的答案",
+  "description": "兔兔占卜师会制作出专属于你的答案。",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7ffff",
+  "theme_color": "#c8f3f1",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
