@@ -1,9 +1,4 @@
 {
-  "functions": {
-    "api/*.mjs": {
-      "runtime": "nodejs22.x"
-    }
-  },
   "headers": [
     {
       "source": "/api/(.*)",
