@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#c8f3f1" />
+    <link rel="manifest" href="./admin.webmanifest" />
+    <link rel="stylesheet" href="./styles.css?v=update-prompt-20260901" />
+    <link rel="stylesheet" href="./admin.css?v=update-prompt-20260901" />
+    <title>咪的答案后台</title>
+  </head>
+  <body>
+    <main class="admin-shell">
+      <header class="admin-header">
+        <div>
+          <h1>咪的答案后台</h1>
+          <p>管理小猪通行证、签文、提问记录和反馈</p>
+        </div>
+        <a class="admin-home" href="./">回到小程序</a>
+      </header>
+
+      <section id="adminGate" class="admin-panel">
+        <h2>后台入口</h2>
+        <p>请先在小程序首页用管理员手机号登录，再回到这里。</p>
+      </section>
+
+      <section id="adminApp" hidden>
+        <nav class="admin-tabs" aria-label="后台栏目">
+          <button class="active" data-admin-tab="answers" type="button">答案库</button>
+          <button data-admin-tab="users" type="button">用户</button>
+          <button data-admin-tab="logs" type="button">记录</button>
+          <button data-admin-tab="feedback" type="button">反馈</button>
+        </nav>
+
+        <section class="admin-panel admin-view active" data-admin-view="answers">
+          <div class="panel-title">
+            <h2>答案库</h2>
+            <span id="answerCount"></span>
+          </div>
+          <form id="answerForm" class="answer-form">
+            <select id="answerMood">
+              <option value="book">答案之书</option>
+              <option value="general">通用</option>
+              <option value="action">行动</option>
+              <option value="wait">等待</option>
+              <option value="comfort">安慰</option>
+              <option value="love">感情</option>
+              <option value="playful">搞怪</option>
+            </select>
+            <input id="answerText" maxlength="140" placeholder="新增一条签文..." />
+            <button type="submit">新增</button>
+          </form>
+          <div id="answersList" class="admin-list"></div>
+        </section>
+
+        <section class="admin-panel admin-view" data-admin-view="users">
+          <div class="panel-title">
+            <h2>用户</h2>
+            <span id="userCount"></span>
+          </div>
+          <div id="usersList" class="admin-list"></div>
+        </section>
+
+        <section class="admin-panel admin-view" data-admin-view="logs">
+          <div class="panel-title">
+            <h2>提问记录</h2>
+            <span>最近 200 条</span>
+          </div>
+          <div id="logsList" class="admin-list"></div>
+        </section>
+
+        <section class="admin-panel admin-view" data-admin-view="feedback">
+          <div class="panel-title">
+            <h2>意见反馈</h2>
+            <span>最近 200 条</span>
+          </div>
+          <div id="feedbackList" class="admin-list"></div>
+        </section>
+      </section>
+    </main>
+
+    <script defer src="./admin.js?v=update-prompt-20260901"></script>
+  </body>
+</html>
