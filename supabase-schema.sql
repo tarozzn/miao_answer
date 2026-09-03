@@ -51,6 +51,14 @@ create table if not exists favorites (
   created_at timestamptz not null default now()
 );
 
+create table if not exists user_states (
+  user_id uuid primary key references app_users(id) on delete cascade,
+  visit_state jsonb not null default '{}'::jsonb,
+  energy_state jsonb not null default '{}'::jsonb,
+  wishes jsonb not null default '[]'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
 create index if not exists sessions_token_hash_idx on sessions(token_hash);
 create index if not exists question_logs_created_at_idx on question_logs(created_at desc);
 create index if not exists feedback_created_at_idx on feedback(created_at desc);
@@ -63,6 +71,7 @@ alter table answers enable row level security;
 alter table question_logs enable row level security;
 alter table feedback enable row level security;
 alter table favorites enable row level security;
+alter table user_states enable row level security;
 
 drop policy if exists "service role manages app_users" on app_users;
 drop policy if exists "service role manages sessions" on sessions;
@@ -70,6 +79,7 @@ drop policy if exists "service role manages answers" on answers;
 drop policy if exists "service role manages question_logs" on question_logs;
 drop policy if exists "service role manages feedback" on feedback;
 drop policy if exists "service role manages favorites" on favorites;
+drop policy if exists "service role manages user_states" on user_states;
 
 create policy "service role manages app_users" on app_users for all to service_role using (true) with check (true);
 create policy "service role manages sessions" on sessions for all to service_role using (true) with check (true);
@@ -77,3 +87,4 @@ create policy "service role manages answers" on answers for all to service_role 
 create policy "service role manages question_logs" on question_logs for all to service_role using (true) with check (true);
 create policy "service role manages feedback" on feedback for all to service_role using (true) with check (true);
 create policy "service role manages favorites" on favorites for all to service_role using (true) with check (true);
+create policy "service role manages user_states" on user_states for all to service_role using (true) with check (true);

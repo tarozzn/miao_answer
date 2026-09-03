@@ -925,7 +925,7 @@ const SECRET_NOTE_KEY = "little-oracle-secret-note";
 const ENERGY_BOTTLE_KEY = "little-oracle-energy-bottle";
 const WISHES_KEY = "little-oracle-wishes";
 const UPDATE_SEEN_KEY = "little-oracle-update-seen-version";
-const APP_VERSION_CODE = 2026090306;
+const APP_VERSION_CODE = 2026090307;
 const SESSION_DAYS = 7;
 const SESSION_MS = SESSION_DAYS * 24 * 60 * 60 * 1000;
 const ENERGY_GOAL = 100;
@@ -985,6 +985,7 @@ let databaseConfigured = true;
 let authMode = "login";
 let latestAnswer = "";
 let latestQuestion = "";
+let cloudStateHydrating = false;
 
 async function apiRequest(path, options = {}) {
   const response = await fetch(path, {
@@ -1509,6 +1510,25 @@ function readJsonStorage(key, fallback) {
   }
 }
 
+function canSyncCloudState() {
+  return Boolean(databaseConfigured && currentUser && !currentUser.localOnly);
+}
+
+function writeJsonStorage(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+function syncCloudState(partialState) {
+  if (!canSyncCloudState() || cloudStateHydrating) {
+    return;
+  }
+
+  apiRequest("./api/user-state", {
+    method: "PATCH",
+    body: JSON.stringify(partialState),
+  }).catch(() => {});
+}
+
 function getDailyChatMessages() {
   const saved = readJsonStorage(DAILY_CHAT_KEY, null);
   if (!saved || saved.dateKey !== getTodayKey() || !Array.isArray(saved.messages)) {
@@ -1517,6 +1537,13 @@ function getDailyChatMessages() {
   }
 
   return saved.messages;
+}
+
+function setDailyChatMessages(messages) {
+  writeJsonStorage(DAILY_CHAT_KEY, {
+    dateKey: getTodayKey(),
+    messages: messages.slice(-80),
+  });
 }
 
 function saveDailyChatMessage(message) {
@@ -1554,6 +1581,167 @@ function restoreDailyChat(messages) {
   return true;
 }
 
+function renderChatMessages(messages, savedMessages) {
+  messages.textContent = "";
+  savedMessages.forEach((message) => {
+    if (!message?.text || !message?.sender) {
+      return;
+    }
+    addMessage(messages, message.text, message.sender, {
+      favoritable: Boolean(message.favoritable),
+      echoable: Boolean(message.echoable),
+      question: message.question || "",
+      createdAt: message.createdAt || message.created_at,
+      inkReveal: false,
+      persist: false,
+    });
+  });
+}
+
+function mergeVisitState(localVisit, cloudVisit) {
+  const today = getIsoDateKey();
+  const yesterday = getYesterdayIsoKey();
+  const localStreak = Number(localVisit?.streak || 0);
+  const cloudStreak = Number(cloudVisit?.streak || 0);
+
+  if (cloudVisit?.lastVisit === today) {
+    return { lastVisit: today, streak: Math.max(cloudStreak, localStreak, 1) };
+  }
+
+  if (localVisit?.lastVisit === today && cloudVisit?.lastVisit === yesterday) {
+    return { lastVisit: today, streak: Math.max(localStreak, cloudStreak + 1, 1) };
+  }
+
+  if (localVisit?.lastVisit === today) {
+    return { lastVisit: today, streak: Math.max(localStreak, 1) };
+  }
+
+  if (cloudVisit?.lastVisit) {
+    return {
+      lastVisit: cloudVisit.lastVisit,
+      streak: Math.max(cloudStreak, 1),
+    };
+  }
+
+  return localVisit || {};
+}
+
+function mergeWishes(localWishes, cloudWishes) {
+  const byKey = new Map();
+  [...cloudWishes, ...localWishes].forEach((wish) => {
+    if (!wish?.text) return;
+    const key = wish.id || `${wish.text}-${wish.createdAt || ""}`;
+    byKey.set(key, {
+      id: String(wish.id || key),
+      text: String(wish.text).slice(0, 120),
+      createdAt: wish.createdAt || new Date().toISOString(),
+    });
+  });
+  return [...byKey.values()]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 30);
+}
+
+async function hydrateCloudState() {
+  if (!canSyncCloudState()) {
+    return;
+  }
+
+  cloudStateHydrating = true;
+  try {
+    const data = await apiRequest("./api/user-state");
+    const localVisit = readJsonStorage(VISIT_STREAK_KEY, {});
+    const cloudVisit = data.visitState || {};
+    const mergedVisit = mergeVisitState(localVisit, cloudVisit);
+    const cloudEnergy = data.energyState || {};
+    const localWishes = getWishes();
+    const cloudWishes = Array.isArray(data.wishes) ? data.wishes : [];
+    const mergedWishes = mergeWishes(localWishes, cloudWishes);
+
+    if (mergedVisit.lastVisit) {
+      writeJsonStorage(VISIT_STREAK_KEY, mergedVisit);
+    }
+    if (Object.keys(cloudEnergy).length) {
+      writeJsonStorage(ENERGY_BOTTLE_KEY, cloudEnergy);
+    }
+    writeJsonStorage(WISHES_KEY, mergedWishes);
+
+    cloudStateHydrating = false;
+    const charm = document.querySelector("#visitCharm");
+    if (charm && mergedVisit.streak) {
+      charm.hidden = false;
+      charm.textContent =
+        Number(mergedVisit.streak) > 1
+          ? `某只猪连续第 ${mergedVisit.streak} 天拜访兔兔占卜师，今日好运已偷偷续杯`
+          : "某只猪今天第一次拜访兔兔占卜师，已经盖上小爪印";
+    }
+    const cloudNeedsTodayCharge = cloudVisit.lastVisit !== getIsoDateKey() && mergedVisit.lastVisit === getIsoDateKey();
+    updateEnergyBottle(Number(mergedVisit.streak || 1), cloudNeedsTodayCharge);
+    syncCloudState({
+      visitState: mergedVisit,
+      energyState: readJsonStorage(ENERGY_BOTTLE_KEY, {}),
+      wishes: mergedWishes,
+    });
+
+    const area = document.querySelector("#wishFloatArea");
+    if (area && !document.querySelector("#wishModal")?.hidden) {
+      renderStoredQuestionPapers(area);
+    }
+  } catch (error) {
+    cloudStateHydrating = false;
+  }
+}
+
+async function hydrateTodayLogs(messages) {
+  if (!canSyncCloudState() || !messages) {
+    return;
+  }
+
+  try {
+    const data = await apiRequest("./api/today-logs");
+    const logs = Array.isArray(data.logs) ? data.logs : [];
+    if (!logs.length) {
+      return;
+    }
+
+    const cloudMessages = [
+      {
+        sender: "bot",
+        text: pickOpeningLine(),
+        createdAt: logs[0].created_at,
+      },
+    ];
+    logs.forEach((log) => {
+      cloudMessages.push({
+        sender: "user",
+        text: log.question,
+        createdAt: log.created_at,
+      });
+      cloudMessages.push({
+        sender: "bot",
+        text: log.answer_text,
+        favoritable: true,
+        echoable: true,
+        question: log.question,
+        createdAt: log.created_at,
+      });
+    });
+
+    const localUsefulCount = getDailyChatMessages().filter((message) => message.sender === "user").length;
+    if (logs.length <= localUsefulCount) {
+      return;
+    }
+
+    setDailyChatMessages(cloudMessages);
+    renderChatMessages(messages, cloudMessages);
+  } catch (error) {}
+}
+
+async function hydrateCloudExperience(messages) {
+  await hydrateCloudState();
+  await hydrateTodayLogs(messages);
+}
+
 function updateVisitStreak() {
   const today = getIsoDateKey();
   const yesterday = getYesterdayIsoKey();
@@ -1572,6 +1760,12 @@ function updateVisitStreak() {
       streak: nextStreak,
     }),
   );
+  syncCloudState({
+    visitState: {
+      lastVisit: today,
+      streak: nextStreak,
+    },
+  });
   return { streak: nextStreak, isNewVisit: true };
 }
 
@@ -1685,14 +1879,13 @@ function updateEnergyBottle(streak, isNewVisit) {
       window.setTimeout(() => showEnergyReward(rewardText), 680);
     }
 
-    localStorage.setItem(
-      ENERGY_BOTTLE_KEY,
-      JSON.stringify({
-        energy,
-        rewards: rewards.slice(0, 12),
-        lastCharged: today,
-      }),
-    );
+    const nextEnergyState = {
+      energy,
+      rewards: rewards.slice(0, 12),
+      lastCharged: today,
+    };
+    writeJsonStorage(ENERGY_BOTTLE_KEY, nextEnergyState);
+    syncCloudState({ energyState: nextEnergyState });
   }
 
   renderEnergyBottle(energy, streak, justAdded);
@@ -1717,7 +1910,9 @@ function getWishes() {
 }
 
 function saveWishes(wishes) {
-  localStorage.setItem(WISHES_KEY, JSON.stringify(wishes.slice(0, 30)));
+  const nextWishes = wishes.slice(0, 30);
+  writeJsonStorage(WISHES_KEY, nextWishes);
+  syncCloudState({ wishes: nextWishes });
 }
 
 function removeStoredQuestion(id) {
@@ -2446,7 +2641,7 @@ function setAuthMode(mode) {
   }
 }
 
-async function initAuth() {
+async function initAuth(messages) {
   const authModal = document.querySelector("#authModal");
   const authForm = document.querySelector("#authForm");
   const phoneInput = document.querySelector("#phoneInput");
@@ -2522,6 +2717,9 @@ async function initAuth() {
       }
     } else {
       updateUserUi(data.user);
+      if (data.user) {
+        await hydrateCloudExperience(messages);
+      }
     }
     if (!data.user && data.configured !== false && authModal) {
       authModal.hidden = false;
@@ -2608,6 +2806,7 @@ async function initAuth() {
         }),
       });
       updateUserUi(data.user);
+      await hydrateCloudExperience(messages);
       if (authModal) authModal.hidden = true;
       passwordInput.value = "";
       if (resetSecretInput) resetSecretInput.value = "";
@@ -2815,7 +3014,7 @@ function initOracle() {
   initVisitRitual();
   initEnergyBottle();
   initWishBottle();
-  initAuth();
+  initAuth(messages);
   initServiceWorkerUpdates();
 }
 
