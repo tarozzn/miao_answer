@@ -924,6 +924,8 @@ const VISIT_STREAK_KEY = "little-oracle-visit-streak";
 const SECRET_NOTE_KEY = "little-oracle-secret-note";
 const ENERGY_BOTTLE_KEY = "little-oracle-energy-bottle";
 const WISHES_KEY = "little-oracle-wishes";
+const UPDATE_SEEN_KEY = "little-oracle-update-seen-version";
+const APP_VERSION_CODE = 2026090303;
 const SESSION_DAYS = 7;
 const SESSION_MS = SESSION_DAYS * 24 * 60 * 60 * 1000;
 const ENERGY_GOAL = 100;
@@ -2110,20 +2112,68 @@ function playFavoriteFly(control) {
   const targetBox = target.getBoundingClientRect();
   const flyer = source.cloneNode(true);
   flyer.classList.add("favorite-flyer");
-  flyer.style.left = `${sourceBox.left}px`;
-  flyer.style.top = `${sourceBox.top}px`;
+  flyer.style.left = "0";
+  flyer.style.top = "0";
   flyer.style.width = `${sourceBox.width}px`;
-  flyer.style.setProperty("--fly-x", `${targetBox.left + targetBox.width / 2 - sourceBox.left - sourceBox.width / 2}px`);
-  flyer.style.setProperty("--fly-y", `${targetBox.top + targetBox.height / 2 - sourceBox.top - sourceBox.height / 2}px`);
   document.body.append(flyer);
   control?.closest(".message")?.classList.add("is-folding-to-favorite");
 
-  window.setTimeout(() => {
+  const start = {
+    x: sourceBox.left + Math.min(sourceBox.width * 0.72, sourceBox.width - 24),
+    y: sourceBox.top + sourceBox.height * 0.46,
+  };
+  const end = {
+    x: targetBox.left + targetBox.width / 2,
+    y: targetBox.top + targetBox.height / 2,
+  };
+  const lift = Math.max(92, Math.min(170, Math.abs(start.y - end.y) * 0.42 + 84));
+  const controlOne = {
+    x: start.x + (end.x - start.x) * 0.18,
+    y: start.y - lift,
+  };
+  const controlTwo = {
+    x: start.x + (end.x - start.x) * 0.72,
+    y: end.y - lift * 0.62,
+  };
+  const duration = 1900;
+  const startedAt = performance.now();
+  const ease = (t) => 1 - Math.pow(1 - t, 3);
+  const curve = (t, p0, p1, p2, p3) =>
+    Math.pow(1 - t, 3) * p0 +
+    3 * Math.pow(1 - t, 2) * t * p1 +
+    3 * (1 - t) * t * t * p2 +
+    t * t * t * p3;
+  const curveSlope = (t, p0, p1, p2, p3) =>
+    3 * Math.pow(1 - t, 2) * (p1 - p0) +
+    6 * (1 - t) * t * (p2 - p1) +
+    3 * t * t * (p3 - p2);
+
+  function flyFrame(now) {
+    const raw = Math.min((now - startedAt) / duration, 1);
+    const t = ease(raw);
+    const x = curve(t, start.x, controlOne.x, controlTwo.x, end.x);
+    const y = curve(t, start.y, controlOne.y, controlTwo.y, end.y);
+    const dx = curveSlope(t, start.x, controlOne.x, controlTwo.x, end.x);
+    const dy = curveSlope(t, start.y, controlOne.y, controlTwo.y, end.y);
+    const angle = Math.atan2(dy, dx) * (180 / Math.PI) + 12 + Math.sin(raw * Math.PI * 5) * 5;
+    const scale = 0.95 - raw * 0.58;
+    const fade = raw < 0.78 ? 1 : Math.max(0, 1 - (raw - 0.78) / 0.22);
+
+    flyer.style.opacity = `${fade}`;
+    flyer.style.transform = `translate3d(${x - 27}px, ${y - 18}px, 0) rotate(${angle}deg) scale(${scale})`;
+
+    if (raw < 1) {
+      requestAnimationFrame(flyFrame);
+      return;
+    }
+
     flyer.remove();
     target.classList.add("is-catching");
     control?.closest(".message")?.classList.remove("is-folding-to-favorite");
     window.setTimeout(() => target.classList.remove("is-catching"), 520);
-  }, 760);
+  }
+
+  requestAnimationFrame(flyFrame);
 }
 
 async function saveFavorite(favorite, control) {
@@ -2134,15 +2184,15 @@ async function saveFavorite(favorite, control) {
     control.setAttribute("aria-label", "取消收藏这条答案");
   }
   window.setTimeout(() => control?.classList.remove("is-active"), 900);
+  playFavoriteFly(control);
+  renderFavorites();
+  showToast("收藏好啦。");
 
   await apiRequest("./api/favorites", {
     method: "POST",
     body: JSON.stringify(favorite),
   }).catch(() => {});
 
-  playFavoriteFly(control);
-  renderFavorites();
-  showToast("收藏好啦。");
   return storedFavorite;
 }
 
@@ -2154,6 +2204,8 @@ async function removeFavorite(favorite, control) {
     control.textContent = "♡";
     control.setAttribute("aria-label", "收藏这条答案");
   }
+  renderFavorites();
+  showToast("已经取消收藏啦。");
 
   await apiRequest("./api/favorites", {
     method: "DELETE",
@@ -2163,9 +2215,6 @@ async function removeFavorite(favorite, control) {
       question: getFavoriteQuestion(favorite),
     }),
   }).catch(() => {});
-
-  renderFavorites();
-  showToast("已经取消收藏啦。");
 }
 
 async function runAnswerEcho(messages, question, control) {
@@ -2340,6 +2389,7 @@ function setAuthMode(mode) {
   const registerTab = document.querySelector("#registerTab");
   const nicknameField = document.querySelector("#nicknameField");
   const resetSecretField = document.querySelector("#resetSecretField");
+  const authForm = document.querySelector("#authForm");
   const passwordInput = document.querySelector("#passwordInput");
   const resetSecretInput = document.querySelector("#resetSecretInput");
   const forgotPasswordButton = document.querySelector("#forgotPasswordButton");
@@ -2347,6 +2397,7 @@ function setAuthMode(mode) {
 
   loginTab?.classList.toggle("active", mode === "login");
   registerTab?.classList.toggle("active", mode === "register");
+  authForm?.setAttribute("data-auth-mode", mode);
   if (nicknameField) nicknameField.hidden = mode !== "register";
   if (resetSecretField) resetSecretField.hidden = mode !== "reset";
   if (passwordInput) {
@@ -2604,7 +2655,35 @@ async function initAuth() {
   });
 }
 
-function showUpdatePrompt(registration) {
+function rememberSeenVersion(versionCode = APP_VERSION_CODE) {
+  localStorage.setItem(UPDATE_SEEN_KEY, String(versionCode));
+}
+
+function getSeenVersion() {
+  return Number(localStorage.getItem(UPDATE_SEEN_KEY) || APP_VERSION_CODE);
+}
+
+async function getRemoteVersionCode() {
+  try {
+    const response = await fetch(`./version.json?t=${Date.now()}`, {
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      return APP_VERSION_CODE;
+    }
+    const data = await response.json();
+    return Number(data.versionCode) || APP_VERSION_CODE;
+  } catch (error) {
+    return APP_VERSION_CODE;
+  }
+}
+
+async function shouldShowUpdatePrompt() {
+  const remoteVersionCode = await getRemoteVersionCode();
+  return remoteVersionCode > getSeenVersion() ? remoteVersionCode : 0;
+}
+
+async function showUpdatePrompt(registration) {
   const waitingWorker = registration.waiting || registration.installing;
   const prompt = document.querySelector("#updatePrompt");
   const button = document.querySelector("#updateButton");
@@ -2612,15 +2691,25 @@ function showUpdatePrompt(registration) {
     return;
   }
 
+  const nextVersionCode = await shouldShowUpdatePrompt();
+  if (!nextVersionCode) {
+    return;
+  }
+
   prompt.hidden = false;
   button.onclick = () => {
     button.disabled = true;
     button.textContent = "更新中";
+    rememberSeenVersion(nextVersionCode);
     waitingWorker.postMessage({ type: "SKIP_WAITING" });
   };
 }
 
 function initServiceWorkerUpdates() {
+  if (!localStorage.getItem(UPDATE_SEEN_KEY)) {
+    rememberSeenVersion(APP_VERSION_CODE);
+  }
+
   if (!("serviceWorker" in navigator)) {
     return;
   }

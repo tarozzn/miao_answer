@@ -1,15 +1,16 @@
-const CACHE_NAME = "little-oracle-v43-night-ink";
+const CACHE_NAME = "little-oracle-v48-auth-reset-field";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./admin.html",
-  "./styles.css?v=night-ink-20260903",
-  "./admin.css?v=night-ink-20260903",
-  "./app.js?v=night-ink-20260903",
+  "./styles.css?v=auth-reset-field-20260903",
+  "./admin.css?v=auth-reset-field-20260903",
+  "./app.js?v=auth-reset-field-20260903",
   "./assets/fonts/jinmei-doudou.ttf",
   "./assets/fonts/guaiguai.ttf",
-  "./admin.js?v=night-ink-20260903",
+  "./admin.js?v=auth-reset-field-20260903",
   "./manifest.webmanifest",
+  "./version.json",
   "./admin.webmanifest",
   "./icon-192.png",
   "./icon-512.png",

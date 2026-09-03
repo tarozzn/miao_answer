@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#c8f3f1" />
     <meta name="description" content="一个给某只猪使用的专属玄学答疑小程序。" />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=night-ink-20260903" />
+    <link rel="stylesheet" href="./styles.css?v=auth-reset-field-20260903" />
     <title>咪的答案</title>
   </head>
   <body>
@@ -127,7 +127,7 @@
           <button id="loginTab" type="button" class="tab active">登录</button>
           <button id="registerTab" type="button" class="tab">注册</button>
         </div>
-        <form id="authForm" class="stack-form">
+        <form id="authForm" class="stack-form" data-auth-mode="login">
           <label>
             手机号
             <input id="phoneInput" type="tel" inputmode="tel" autocomplete="tel" required />
@@ -244,6 +244,6 @@
       <button id="updateButton" type="button">马上更新</button>
     </div>
 
-    <script defer src="./app.js?v=night-ink-20260903"></script>
+    <script defer src="./app.js?v=auth-reset-field-20260903"></script>
   </body>
 </html>
