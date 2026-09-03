@@ -925,7 +925,7 @@ const SECRET_NOTE_KEY = "little-oracle-secret-note";
 const ENERGY_BOTTLE_KEY = "little-oracle-energy-bottle";
 const WISHES_KEY = "little-oracle-wishes";
 const UPDATE_SEEN_KEY = "little-oracle-update-seen-version";
-const APP_VERSION_CODE = 2026090303;
+const APP_VERSION_CODE = 2026090306;
 const SESSION_DAYS = 7;
 const SESSION_MS = SESSION_DAYS * 24 * 60 * 60 * 1000;
 const ENERGY_GOAL = 100;
@@ -1064,6 +1064,37 @@ function renderInkText(bubble, text) {
     span.setAttribute("aria-hidden", "true");
     span.style.setProperty("--ink-delay", `${Math.min(index * 0.018, 1.2)}s`);
     bubble.append(span);
+  });
+}
+
+function dropTreats(trigger, treats) {
+  const box = trigger.getBoundingClientRect();
+  const centerX = box.left + box.width / 2;
+  const startY = box.top + box.height * 0.55;
+  const count = 6;
+
+  for (let index = 0; index < count; index += 1) {
+    const treat = document.createElement("span");
+    treat.className = "falling-treat";
+    treat.textContent = treats[index % treats.length];
+    treat.setAttribute("aria-hidden", "true");
+    treat.style.left = `${centerX}px`;
+    treat.style.top = `${startY}px`;
+    treat.style.setProperty("--treat-x", `${(index - (count - 1) / 2) * 13 + (Math.random() - 0.5) * 18}px`);
+    treat.style.setProperty("--treat-y", `${64 + Math.random() * 46}px`);
+    treat.style.setProperty("--treat-rotate", `${-34 + Math.random() * 68}deg`);
+    treat.style.setProperty("--treat-delay", `${index * 0.035}s`);
+    document.body.append(treat);
+    window.setTimeout(() => treat.remove(), 1250);
+  }
+}
+
+function initTreatDrops() {
+  document.querySelector(".rabbit-mark")?.addEventListener("click", (event) => {
+    dropTreats(event.currentTarget, ["🥕", "˖", "🥕"]);
+  });
+  document.querySelector(".cat-mark")?.addEventListener("click", (event) => {
+    dropTreats(event.currentTarget, ["🌶️", "˖", "🌶️"]);
   });
 }
 
@@ -2759,6 +2790,7 @@ function initOracle() {
   }
 
   applyNightMode();
+  initTreatDrops();
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();

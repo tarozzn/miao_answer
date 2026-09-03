@@ -1,14 +1,14 @@
-const CACHE_NAME = "little-oracle-v48-auth-reset-field";
+const CACHE_NAME = "little-oracle-v51-pet-treats";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./admin.html",
-  "./styles.css?v=auth-reset-field-20260903",
-  "./admin.css?v=auth-reset-field-20260903",
-  "./app.js?v=auth-reset-field-20260903",
+  "./styles.css?v=pet-treats-20260903",
+  "./admin.css?v=pet-treats-20260903",
+  "./app.js?v=pet-treats-20260903",
   "./assets/fonts/jinmei-doudou.ttf",
   "./assets/fonts/guaiguai.ttf",
-  "./admin.js?v=auth-reset-field-20260903",
+  "./admin.js?v=pet-treats-20260903",
   "./manifest.webmanifest",
   "./version.json",
   "./admin.webmanifest",
