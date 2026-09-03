@@ -918,8 +918,62 @@ const flowerTypes = [
 const petalSymbols = ["·", "✦", "∴", "˖", "°", "♡"];
 const LOCAL_USER_KEY = "little-oracle-local-user";
 const LOCAL_ACCOUNTS_KEY = "little-oracle-local-accounts";
+const DAILY_CHAT_KEY = "little-oracle-daily-chat";
+const FAVORITE_REMINDER_KEY = "little-oracle-favorite-reminder";
+const VISIT_STREAK_KEY = "little-oracle-visit-streak";
+const SECRET_NOTE_KEY = "little-oracle-secret-note";
+const ENERGY_BOTTLE_KEY = "little-oracle-energy-bottle";
+const WISHES_KEY = "little-oracle-wishes";
 const SESSION_DAYS = 7;
 const SESSION_MS = SESSION_DAYS * 24 * 60 * 60 * 1000;
+const ENERGY_GOAL = 100;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const secretNotes = [
+  "秘密纸条：某只猪今天也被兔兔占卜师偷偷偏心。",
+  "纸条轻轻飘过：别忘了，现实里的小兔子一直在。",
+  "今日隐藏签：大白菜骨头汤正在给小猪猪攒一点好运。",
+  "兔兔占卜师悄悄写下：你已经比昨天更厉害一点点。",
+  "秘密小纸条：今天适合吃点好吃的，再把烦恼放小一点。",
+  "小兔子盖章：某只猪不用每件事都表现得很厉害。",
+  "偷偷告诉你啊：有些好事正在慢慢靠近。",
+  "今日纸条：种太阳~种太阳~先把小猪照亮。",
+  "怪力乱神夹带私货：你是很值得被爱的同学。",
+  "小纸条落下来了：今天也请对自己温柔一点。",
+];
+
+const echoSteps = [
+  "兔兔正在把旧答案揉成小纸团",
+  "撒一点星辰",
+  "倒一点露水",
+  "蘸一点彩虹",
+  "呼噜呼噜重新制作中",
+];
+
+const energyRewards = [
+  "隐藏夸夸签：某只猪居然坚持来找兔兔这么多天，认真讲，很厉害。",
+  "能量瓶奖励：今天允许小猪猪理直气壮地被偏爱一下。",
+  "满瓶签文：大白菜骨头汤宣布，某只猪本周好运正在慢慢升温。",
+  "兔兔奖励纸条：你不用一直表现得很稳，也会有人喜欢真实的你。",
+  "小猪能量满格：今天做什么都可以先把自己放在第一位。",
+  "神秘奖励：现实里的小兔子正在远程给你补充一点亮晶晶能量。",
+];
+
+const wishPrompts = [
+  "问题瓶晃了一下，纸条要浮出来啦。",
+  "瓶口出现一点薄荷光，暂存问题正在冒泡。",
+  "兔兔占卜师听见瓶子里咕嘟了一声。",
+  "漂流问题纸条正在排队出瓶。",
+];
+
+const nightOpeners = [
+  "晚安模式开启，兔兔占卜师戴着小睡帽听某只猪说话。",
+  "月亮值班中，小猪猪的问题可以轻轻放过来。",
+  "嘘，夜间答案之书翻开啦，今天不许太用力想事情。",
+  "星星已经坐好，某只猪慢慢问，兔兔慢慢答。",
+  "夜里适合温柔一点，怪力乱神也小声营业。",
+  "小兔子把被角掖好啦，问题可以轻轻丢进来。",
+];
 
 let pendingQuestion = "";
 let pendingMood = "general";
@@ -951,14 +1005,64 @@ function pick(items) {
   return items[Math.floor(Math.random() * items.length)];
 }
 
-function pickDaily(items) {
-  const todayKey = new Date().toLocaleDateString("zh-CN", {
+function getTodayKey() {
+  return new Date().toLocaleDateString("zh-CN", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   });
+}
+
+function getIsoDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getYesterdayIsoKey() {
+  const date = new Date();
+  date.setDate(date.getDate() - 1);
+  return getIsoDateKey(date);
+}
+
+function pickDaily(items) {
+  const todayKey = getTodayKey();
   const index = [...todayKey].reduce((sum, char) => sum + char.charCodeAt(0), 0) % items.length;
   return items[index];
+}
+
+function isNightTime(date = new Date()) {
+  const hour = date.getHours();
+  return hour >= 19 || hour < 6;
+}
+
+function pickOpeningLine() {
+  return isNightTime() ? pickDaily(nightOpeners) : pickDaily(answerBook.dailyOpeners);
+}
+
+function applyNightMode() {
+  const night = isNightTime();
+  const welcome = document.querySelector(".welcome-line");
+  document.body.classList.toggle("night-mode", night);
+  if (welcome) {
+    welcome.textContent = night
+      ? "嘘，月亮和兔兔占卜师都在，小猪猪可以轻轻提问"
+      : "嘛哩嘛哩哄，怪力乱神已上线，某只猪请提问";
+  }
+}
+
+function renderInkText(bubble, text) {
+  bubble.textContent = "";
+  bubble.setAttribute("aria-label", text);
+  const chars = [...String(text)];
+  chars.forEach((char, index) => {
+    const span = document.createElement("i");
+    span.textContent = char;
+    span.setAttribute("aria-hidden", "true");
+    span.style.setProperty("--ink-delay", `${Math.min(index * 0.018, 1.2)}s`);
+    bubble.append(span);
+  });
 }
 
 function normalizeQuestion(question) {
@@ -1164,20 +1268,29 @@ function pickOracleAnswer(mood) {
 }
 
 function addMessage(messages, text, sender, options = {}) {
+  const createdAt = options.createdAt || options.created_at || new Date().toISOString();
   const article = document.createElement("article");
   article.className = `message ${sender}`;
-  if (options.favoritable) {
+  if (options.favoritable || options.echoable) {
     article.classList.add("has-actions");
   }
   const bubble = document.createElement("span");
-  bubble.textContent = text;
+  if (sender === "bot" && options.inkReveal !== false && options.favoritable) {
+    bubble.classList.add("ink-reveal");
+    renderInkText(bubble, text);
+  } else {
+    bubble.textContent = text;
+  }
   article.append(bubble);
+
+  const actions = document.createElement("div");
+  actions.className = "message-actions";
 
   if (options.favoritable) {
     const favoriteRecord = {
       answerText: text,
       question: options.question || latestQuestion,
-      created_at: new Date().toISOString(),
+      created_at: createdAt,
     };
     const favorite = document.createElement("button");
     favorite.className = "message-favorite";
@@ -1198,11 +1311,38 @@ function addMessage(messages, text, sender, options = {}) {
         saveFavorite(favoriteRecord, favorite);
       }
     });
-    article.append(favorite);
+    actions.append(favorite);
+  }
+
+  if (options.echoable) {
+    const echo = document.createElement("button");
+    echo.className = "message-echo";
+    echo.type = "button";
+    echo.textContent = "再制一次";
+    echo.setAttribute("aria-label", "让兔兔占卜师重新制作一次答案");
+    echo.addEventListener("click", () => {
+      runAnswerEcho(messages, options.question || latestQuestion, echo);
+    });
+    actions.append(echo);
+  }
+
+  if (actions.children.length) {
+    article.append(actions);
   }
 
   messages.append(article);
   messages.scrollTop = messages.scrollHeight;
+
+  if (options.persist !== false) {
+    saveDailyChatMessage({
+      sender,
+      text,
+      favoritable: Boolean(options.favoritable),
+      echoable: Boolean(options.echoable),
+      question: options.question || "",
+      createdAt,
+    });
+  }
 }
 
 function showDrawPanel(messages, drawPanel, cardDeck, drawHint, question) {
@@ -1336,6 +1476,350 @@ function readJsonStorage(key, fallback) {
   }
 }
 
+function getDailyChatMessages() {
+  const saved = readJsonStorage(DAILY_CHAT_KEY, null);
+  if (!saved || saved.dateKey !== getTodayKey() || !Array.isArray(saved.messages)) {
+    localStorage.removeItem(DAILY_CHAT_KEY);
+    return [];
+  }
+
+  return saved.messages;
+}
+
+function saveDailyChatMessage(message) {
+  const messages = getDailyChatMessages();
+  const nextMessages = [...messages, message].slice(-80);
+  localStorage.setItem(
+    DAILY_CHAT_KEY,
+    JSON.stringify({
+      dateKey: getTodayKey(),
+      messages: nextMessages,
+    }),
+  );
+}
+
+function restoreDailyChat(messages) {
+  const savedMessages = getDailyChatMessages();
+  if (!savedMessages.length) {
+    return false;
+  }
+
+  savedMessages.forEach((message) => {
+    if (!message?.text || !message?.sender) {
+      return;
+    }
+    addMessage(messages, message.text, message.sender, {
+      favoritable: Boolean(message.favoritable),
+      echoable: Boolean(message.echoable),
+      question: message.question || "",
+      createdAt: message.createdAt || message.created_at,
+      inkReveal: false,
+      persist: false,
+    });
+  });
+
+  return true;
+}
+
+function updateVisitStreak() {
+  const today = getIsoDateKey();
+  const yesterday = getYesterdayIsoKey();
+  const saved = readJsonStorage(VISIT_STREAK_KEY, {});
+  const currentStreak = Number(saved.streak || 0);
+
+  if (saved.lastVisit === today) {
+    return { streak: currentStreak || 1, isNewVisit: false };
+  }
+
+  const nextStreak = saved.lastVisit === yesterday ? currentStreak + 1 : 1;
+  localStorage.setItem(
+    VISIT_STREAK_KEY,
+    JSON.stringify({
+      lastVisit: today,
+      streak: nextStreak,
+    }),
+  );
+  return { streak: nextStreak, isNewVisit: true };
+}
+
+function initVisitRitual() {
+  const visit = updateVisitStreak();
+  const { streak } = visit;
+  const charm = document.querySelector("#visitCharm");
+  const secretNote = document.querySelector("#secretNote");
+  const secretText = document.querySelector("#secretNoteText");
+  const closeSecretNote = document.querySelector("#closeSecretNote");
+  const today = getIsoDateKey();
+
+  if (charm) {
+    charm.hidden = false;
+    charm.textContent =
+      streak > 1
+        ? `某只猪连续第 ${streak} 天拜访兔兔占卜师，今日好运已偷偷续杯`
+        : "某只猪今日第一次拜访兔兔占卜师，薄荷星光已就位";
+  }
+
+  const savedNote = readJsonStorage(SECRET_NOTE_KEY, {});
+  const shouldShowNote =
+    savedNote.lastShown !== today && (streak === 1 || streak % 3 === 0 || Math.random() < 0.52);
+
+  if (secretNote && secretText && shouldShowNote) {
+    secretText.textContent = pick(secretNotes);
+    secretNote.hidden = false;
+    localStorage.setItem(SECRET_NOTE_KEY, JSON.stringify({ lastShown: today }));
+  }
+
+  closeSecretNote?.addEventListener("click", () => {
+    if (secretNote) {
+      secretNote.classList.add("is-folding");
+      window.setTimeout(() => {
+        secretNote.hidden = true;
+        secretNote.classList.remove("is-folding");
+      }, 220);
+    }
+  });
+
+  updateEnergyBottle(streak, visit.isNewVisit);
+}
+
+function getEnergyBonus(streak) {
+  if (streak >= 14) return 26;
+  if (streak >= 7) return 20;
+  if (streak >= 3) return 16;
+  return 12;
+}
+
+function showEnergyReward(rewardText) {
+  const modal = document.querySelector("#energyRewardModal");
+  const text = document.querySelector("#energyRewardText");
+  const close = document.querySelector("#closeEnergyReward");
+
+  if (!modal || !text || !close) {
+    showToast(rewardText);
+    return;
+  }
+
+  text.textContent = rewardText;
+  modal.hidden = false;
+  close.onclick = () => {
+    modal.hidden = true;
+  };
+}
+
+function renderEnergyBottle(energy, streak, justAdded = 0) {
+  const fill = document.querySelector("#energyFill");
+  const text = document.querySelector("#energyText");
+  const bottle = document.querySelector("#energyBottle");
+  const percent = Math.max(0, Math.min(100, energy));
+
+  if (fill) {
+    fill.style.height = `${percent}%`;
+  }
+
+  if (text) {
+    text.textContent = justAdded
+      ? `今日 +${justAdded}，${percent}/100`
+      : `连续 ${streak} 天，${percent}/100`;
+  }
+
+  if (bottle) {
+    bottle.classList.toggle("is-full", percent >= ENERGY_GOAL);
+    bottle.classList.toggle("just-filled", justAdded > 0);
+    if (justAdded > 0) {
+      window.setTimeout(() => bottle.classList.remove("just-filled"), 900);
+    }
+  }
+}
+
+function updateEnergyBottle(streak, isNewVisit) {
+  const today = getIsoDateKey();
+  const saved = readJsonStorage(ENERGY_BOTTLE_KEY, {});
+  let energy = Number(saved.energy || 0);
+  let justAdded = 0;
+
+  if (isNewVisit && saved.lastCharged !== today) {
+    justAdded = getEnergyBonus(streak);
+    energy += justAdded;
+    const rewards = Array.isArray(saved.rewards) ? saved.rewards : [];
+
+    if (energy >= ENERGY_GOAL) {
+      const rewardText = pick(energyRewards);
+      rewards.unshift({
+        text: rewardText,
+        createdAt: new Date().toISOString(),
+      });
+      energy = energy - ENERGY_GOAL;
+      window.setTimeout(() => showEnergyReward(rewardText), 680);
+    }
+
+    localStorage.setItem(
+      ENERGY_BOTTLE_KEY,
+      JSON.stringify({
+        energy,
+        rewards: rewards.slice(0, 12),
+        lastCharged: today,
+      }),
+    );
+  }
+
+  renderEnergyBottle(energy, streak, justAdded);
+}
+
+function initEnergyBottle() {
+  const bottle = document.querySelector("#energyBottle");
+  bottle?.addEventListener("click", () => {
+    const saved = readJsonStorage(ENERGY_BOTTLE_KEY, {});
+    const rewards = Array.isArray(saved.rewards) ? saved.rewards : [];
+    if (!rewards.length) {
+      showToast("小猪能量瓶正在咕嘟咕嘟蓄能，满了会掉落隐藏夸夸签。");
+      return;
+    }
+
+    showEnergyReward(rewards[0].text);
+  });
+}
+
+function getWishes() {
+  return readJsonStorage(WISHES_KEY, []).filter((wish) => wish?.text);
+}
+
+function saveWishes(wishes) {
+  localStorage.setItem(WISHES_KEY, JSON.stringify(wishes.slice(0, 30)));
+}
+
+function removeStoredQuestion(id) {
+  saveWishes(getWishes().filter((wish) => wish.id !== id));
+}
+
+function renderStoredQuestionPapers(area) {
+  const wishes = getWishes();
+  const now = Date.now();
+  area.textContent = "";
+
+  if (!wishes.length) {
+    area.innerHTML = '<div class="wish-empty">瓶子空空的，先放一张暂存问题纸条进去吧。</div>';
+    return;
+  }
+
+  const list = document.createElement("div");
+  list.className = "wish-paper-list";
+  wishes.forEach((wish, index) => {
+    const paper = document.createElement("button");
+    paper.className = "wish-paper";
+    paper.type = "button";
+    paper.textContent = wish.text;
+    paper.style.setProperty("--paper-delay", `${index * 0.08}s`);
+    if (now - new Date(wish.createdAt || now).getTime() >= 3 * DAY_MS) {
+      paper.classList.add("is-overdue");
+    }
+    paper.setAttribute("aria-label", "点击暂存问题纸条，让兔兔占卜师回答");
+    paper.addEventListener("click", () => showWishConfirm(wish));
+    list.append(paper);
+  });
+  area.append(list);
+}
+
+function floatStoredQuestions() {
+  const area = document.querySelector("#wishFloatArea");
+  const drawButton = document.querySelector("#drawWishButton");
+
+  if (!area) return;
+
+  if (drawButton) {
+    drawButton.textContent = pick(wishPrompts);
+    window.setTimeout(() => {
+      drawButton.textContent = "让问题纸条浮出来";
+    }, 1200);
+  }
+
+  area.classList.remove("is-drawing");
+  void area.offsetWidth;
+  area.classList.add("is-drawing");
+  window.setTimeout(() => renderStoredQuestionPapers(area), 340);
+}
+
+function showWishConfirm(wish) {
+  const modal = document.querySelector("#wishConfirmModal");
+  const text = document.querySelector("#wishConfirmText");
+  const cancel = document.querySelector("#cancelWishAnswer");
+  const confirm = document.querySelector("#confirmWishAnswer");
+
+  if (!modal || !text || !cancel || !confirm) {
+    return;
+  }
+
+  text.textContent = `这张纸条写着：“${wish.text}”。确定要让兔兔占卜师现在回答它吗？回答后它会从瓶子里游出去。`;
+  modal.hidden = false;
+  cancel.onclick = () => {
+    modal.hidden = true;
+  };
+  confirm.onclick = () => {
+    modal.hidden = true;
+    const wishModal = document.querySelector("#wishModal");
+    if (wishModal) {
+      wishModal.hidden = true;
+    }
+    const messages = document.querySelector("#messages");
+    const input = document.querySelector("#questionInput");
+    const drawPanel = document.querySelector("#drawPanel");
+    const cardDeck = document.querySelector("#cardDeck");
+    const drawHint = document.querySelector("#drawHint");
+    if (messages && input && drawPanel && cardDeck && drawHint) {
+      removeStoredQuestion(wish.id);
+      const area = document.querySelector("#wishFloatArea");
+      if (area) {
+        renderStoredQuestionPapers(area);
+      }
+      showToast("兔兔占卜师收到这张暂存问题纸条啦。");
+      ask(messages, input, drawPanel, cardDeck, drawHint, wish.text);
+    }
+  };
+}
+
+function initWishBottle() {
+  const modal = document.querySelector("#wishModal");
+  const open = document.querySelector("#wishBottleButton");
+  const close = document.querySelector("#closeWishModal");
+  const form = document.querySelector("#wishForm");
+  const input = document.querySelector("#wishInput");
+  const drawButton = document.querySelector("#drawWishButton");
+
+  open?.addEventListener("click", () => {
+    if (modal) {
+      modal.hidden = false;
+      floatStoredQuestions();
+    }
+  });
+
+  close?.addEventListener("click", () => {
+    if (modal) {
+      modal.hidden = true;
+    }
+  });
+
+  form?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const text = String(input?.value || "").trim();
+    if (!text) {
+      showToast("问题纸条还空着呢，某只猪写一点点。");
+      return;
+    }
+
+    const wishes = getWishes();
+    wishes.unshift({
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      text: text.slice(0, 120),
+      createdAt: new Date().toISOString(),
+    });
+    saveWishes(wishes);
+    if (input) input.value = "";
+    showToast("问题已经暂时放进瓶子里啦。");
+    floatStoredQuestions();
+  });
+
+  drawButton?.addEventListener("click", () => floatStoredQuestions());
+}
+
 function getLocalAccounts() {
   return readJsonStorage(LOCAL_ACCOUNTS_KEY, {});
 }
@@ -1385,6 +1869,50 @@ function showToast(message) {
   toastTimer = window.setTimeout(() => {
     toast.hidden = true;
   }, 1800);
+}
+
+function shouldShowFavoriteReminder() {
+  const saved = readJsonStorage(FAVORITE_REMINDER_KEY, {});
+  if (saved.muteUntil && saved.muteUntil > Date.now()) {
+    return false;
+  }
+
+  return saved.lastShownDate !== getTodayKey();
+}
+
+function rememberFavoriteReminderChoice(muted) {
+  const nextState = {
+    lastShownDate: getTodayKey(),
+  };
+
+  if (muted) {
+    nextState.muteUntil = Date.now() + 7 * 24 * 60 * 60 * 1000;
+  }
+
+  localStorage.setItem(FAVORITE_REMINDER_KEY, JSON.stringify(nextState));
+}
+
+function showFavoriteReminder() {
+  if (!shouldShowFavoriteReminder()) {
+    return;
+  }
+
+  const modal = document.querySelector("#favoriteReminderModal");
+  const checkbox = document.querySelector("#favoriteReminderMute");
+  const okButton = document.querySelector("#favoriteReminderOk");
+
+  if (!modal || !okButton) {
+    return;
+  }
+
+  if (checkbox) {
+    checkbox.checked = false;
+  }
+  modal.hidden = false;
+  okButton.onclick = () => {
+    rememberFavoriteReminderChoice(Boolean(checkbox?.checked));
+    modal.hidden = true;
+  };
 }
 
 function isImageAvatar(value) {
@@ -1571,6 +2099,33 @@ async function loadFavorites() {
   }
 }
 
+function playFavoriteFly(control) {
+  const source = control?.closest(".message")?.querySelector(":scope > span");
+  const target = document.querySelector("#favoriteButton");
+  if (!source || !target) {
+    return;
+  }
+
+  const sourceBox = source.getBoundingClientRect();
+  const targetBox = target.getBoundingClientRect();
+  const flyer = source.cloneNode(true);
+  flyer.classList.add("favorite-flyer");
+  flyer.style.left = `${sourceBox.left}px`;
+  flyer.style.top = `${sourceBox.top}px`;
+  flyer.style.width = `${sourceBox.width}px`;
+  flyer.style.setProperty("--fly-x", `${targetBox.left + targetBox.width / 2 - sourceBox.left - sourceBox.width / 2}px`);
+  flyer.style.setProperty("--fly-y", `${targetBox.top + targetBox.height / 2 - sourceBox.top - sourceBox.height / 2}px`);
+  document.body.append(flyer);
+  control?.closest(".message")?.classList.add("is-folding-to-favorite");
+
+  window.setTimeout(() => {
+    flyer.remove();
+    target.classList.add("is-catching");
+    control?.closest(".message")?.classList.remove("is-folding-to-favorite");
+    window.setTimeout(() => target.classList.remove("is-catching"), 520);
+  }, 760);
+}
+
 async function saveFavorite(favorite, control) {
   const storedFavorite = saveLocalFavorite(favorite)[0];
   control?.classList.add("is-active", "is-saved");
@@ -1585,6 +2140,7 @@ async function saveFavorite(favorite, control) {
     body: JSON.stringify(favorite),
   }).catch(() => {});
 
+  playFavoriteFly(control);
   renderFavorites();
   showToast("收藏好啦。");
   return storedFavorite;
@@ -1610,6 +2166,60 @@ async function removeFavorite(favorite, control) {
 
   renderFavorites();
   showToast("已经取消收藏啦。");
+}
+
+async function runAnswerEcho(messages, question, control) {
+  if (!question || control?.disabled) {
+    return;
+  }
+
+  control.disabled = true;
+  control.textContent = "制作中";
+
+  const ritual = document.createElement("article");
+  ritual.className = "message bot echo-ritual";
+  const bubble = document.createElement("span");
+  bubble.innerHTML = `
+    <span class="echo-orbit" aria-hidden="true">
+      <i>✦</i><i>❀</i><i>♡</i>
+    </span>
+    <span class="echo-text">兔兔正在加急赶制答案中</span>
+  `;
+  ritual.append(bubble);
+  messages.append(ritual);
+  messages.scrollTop = messages.scrollHeight;
+
+  const echoText = bubble.querySelector(".echo-text");
+  for (const step of echoSteps) {
+    echoText.textContent = step;
+    bubble.classList.remove("is-echoing");
+    void bubble.offsetWidth;
+    bubble.classList.add("is-echoing");
+    await wait(520);
+  }
+
+  const mood = getOracleMood(question);
+  const localAnswer = getSignedAnswer(question, mood);
+  const answer = await getRemoteSignedAnswer(question, mood).catch(() =>
+    currentUser ? `${localAnswer}（线上汤锅暂时没接上，先用本地签文。）` : localAnswer,
+  );
+
+  ritual.classList.add("is-done");
+  echoText.textContent = "回声变成新签文啦";
+  await wait(360);
+  ritual.remove();
+
+  latestAnswer = answer;
+  latestQuestion = question;
+  addMessage(messages, answer, "bot", {
+    favoritable: true,
+    echoable: true,
+    question,
+  });
+  showToast("兔兔重新制作好啦。");
+
+  control.disabled = false;
+  control.textContent = "再制一次";
 }
 
 async function pickCard(messages, drawPanel, cardDeck, drawHint, selectedCard) {
@@ -1650,7 +2260,7 @@ async function pickCard(messages, drawPanel, cardDeck, drawHint, selectedCard) {
     messages.classList.remove("is-drawing");
     latestAnswer = answer;
     latestQuestion = pendingQuestion;
-    addMessage(messages, answer, "bot", { favoritable: true, question: pendingQuestion });
+    addMessage(messages, answer, "bot", { favoritable: true, echoable: true, question: pendingQuestion });
   }, 850);
 }
 
@@ -1703,7 +2313,7 @@ async function pickFlower(messages, drawPanel, cardDeck, drawHint, selectedFlowe
   messages.classList.remove("is-drawing");
   latestAnswer = answer;
   latestQuestion = pendingQuestion;
-  addMessage(messages, answer, "bot", { favoritable: true, question: pendingQuestion });
+  addMessage(messages, answer, "bot", { favoritable: true, echoable: true, question: pendingQuestion });
 }
 
 function ask(messages, input, drawPanel, cardDeck, drawHint, question) {
@@ -1715,6 +2325,7 @@ function ask(messages, input, drawPanel, cardDeck, drawHint, question) {
     return;
   }
 
+  showFavoriteReminder();
   addMessage(messages, question, "user");
   input.value = "";
 
@@ -1728,12 +2339,29 @@ function setAuthMode(mode) {
   const loginTab = document.querySelector("#loginTab");
   const registerTab = document.querySelector("#registerTab");
   const nicknameField = document.querySelector("#nicknameField");
+  const resetSecretField = document.querySelector("#resetSecretField");
+  const passwordInput = document.querySelector("#passwordInput");
+  const resetSecretInput = document.querySelector("#resetSecretInput");
+  const forgotPasswordButton = document.querySelector("#forgotPasswordButton");
   const authSubmit = document.querySelector("#authSubmit");
 
   loginTab?.classList.toggle("active", mode === "login");
   registerTab?.classList.toggle("active", mode === "register");
   if (nicknameField) nicknameField.hidden = mode !== "register";
-  if (authSubmit) authSubmit.textContent = mode === "login" ? "登录" : "注册";
+  if (resetSecretField) resetSecretField.hidden = mode !== "reset";
+  if (passwordInput) {
+    passwordInput.autocomplete = mode === "reset" ? "new-password" : "current-password";
+    passwordInput.placeholder = mode === "reset" ? "设置一个新的不重要密码" : "";
+  }
+  if (resetSecretInput && mode !== "reset") {
+    resetSecretInput.value = "";
+  }
+  if (forgotPasswordButton) {
+    forgotPasswordButton.textContent = mode === "reset" ? "想起来了，返回登录" : "忘记密码";
+  }
+  if (authSubmit) {
+    authSubmit.textContent = mode === "login" ? "登录" : mode === "register" ? "注册" : "重设密码";
+  }
 }
 
 async function initAuth() {
@@ -1742,8 +2370,10 @@ async function initAuth() {
   const phoneInput = document.querySelector("#phoneInput");
   const passwordInput = document.querySelector("#passwordInput");
   const nicknameInput = document.querySelector("#nicknameInput");
+  const resetSecretInput = document.querySelector("#resetSecretInput");
   const loginTab = document.querySelector("#loginTab");
   const registerTab = document.querySelector("#registerTab");
+  const forgotPasswordButton = document.querySelector("#forgotPasswordButton");
   const favoriteButton = document.querySelector("#favoriteButton");
   const settingsButton = document.querySelector("#settingsButton");
   const profileModal = document.querySelector("#profileModal");
@@ -1779,6 +2409,9 @@ async function initAuth() {
 
   loginTab?.addEventListener("click", () => setAuthMode("login"));
   registerTab?.addEventListener("click", () => setAuthMode("register"));
+  forgotPasswordButton?.addEventListener("click", () => {
+    setAuthMode(authMode === "reset" ? "login" : "reset");
+  });
 
   avatarInput?.addEventListener("change", async () => {
     const file = avatarInput.files?.[0];
@@ -1789,7 +2422,7 @@ async function initAuth() {
     try {
       const avatar = await compressAvatar(file);
       setAvatarPreview(avatar);
-      showToast("头像选好啦，记得点保存。");
+      showToast("头像已选好啦，点保存后头像就会生效。");
     } catch (error) {
       showToast(error.message);
       avatarInput.value = "";
@@ -1832,6 +2465,25 @@ async function initAuth() {
       }
 
       const accounts = getLocalAccounts();
+      if (authMode === "reset") {
+        const secretAnswer = String(resetSecretInput?.value || "")
+          .trim()
+          .replace(/\s+/g, "")
+          .replace(/[，,。]/g, "");
+        if (secretAnswer !== "2024上海") {
+          showToast("暗号不对哦，某只猪再想想大白菜骨头汤。");
+          return;
+        }
+        if (!accounts[phone]) {
+          showToast("没有找到这个手机号的小猪通行证。");
+          return;
+        }
+        accounts[phone] = {
+          ...accounts[phone],
+          password,
+        };
+        saveLocalAccounts(accounts);
+      } else
       if (authMode === "register") {
         if (accounts[phone]) {
           showToast("该用户已注册，请登录。");
@@ -1856,7 +2508,12 @@ async function initAuth() {
       return;
     }
 
-    const endpoint = authMode === "login" ? "./api/auth-login" : "./api/auth-register";
+    const endpoint =
+      authMode === "login"
+        ? "./api/auth-login"
+        : authMode === "register"
+          ? "./api/auth-register"
+          : "./api/auth-reset-password";
 
     try {
       const data = await apiRequest(endpoint, {
@@ -1865,11 +2522,15 @@ async function initAuth() {
           phone,
           password,
           nickname: nicknameInput?.value,
+          secretAnswer: resetSecretInput?.value,
         }),
       });
       updateUserUi(data.user);
       if (authModal) authModal.hidden = true;
       passwordInput.value = "";
+      if (resetSecretInput) resetSecretInput.value = "";
+      showToast(authMode === "reset" ? "密码重设成功啦，已经帮你登录。": `登录信息会记住 ${SESSION_DAYS} 天。`);
+      setAuthMode("login");
     } catch (error) {
       showToast(error.message);
     }
@@ -1900,7 +2561,7 @@ async function initAuth() {
         };
         saveLocalAccounts(accounts);
       }
-      showToast("保存好啦，某只猪。");
+      showToast("头像和昵称保存成功啦，某只猪。");
       return;
     }
 
@@ -1913,7 +2574,7 @@ async function initAuth() {
         }),
       });
       updateUserUi(data.user);
-      showToast("保存好啦，某只猪。");
+      showToast("头像和昵称保存成功啦，某只猪。");
     } catch (error) {
       showToast(error.message);
     }
@@ -1927,7 +2588,7 @@ async function initAuth() {
         body: JSON.stringify({ message: feedbackInput?.value }),
       });
       feedbackInput.value = "";
-      showToast("收到啦，小兔子会认真看。");
+      showToast("意见反馈提交成功啦，小兔子会认真看。");
     } catch (error) {
       showToast(error.message);
     }
@@ -2008,6 +2669,8 @@ function initOracle() {
     return;
   }
 
+  applyNightMode();
+
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     const question = input.value.trim();
@@ -2025,7 +2688,12 @@ function initOracle() {
     });
   });
 
-  addMessage(messages, pickDaily(answerBook.dailyOpeners), "bot");
+  if (!restoreDailyChat(messages)) {
+    addMessage(messages, pickOpeningLine(), "bot");
+  }
+  initVisitRitual();
+  initEnergyBottle();
+  initWishBottle();
   initAuth();
   initServiceWorkerUpdates();
 }

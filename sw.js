@@ -1,14 +1,14 @@
-const CACHE_NAME = "little-oracle-v36-update-prompt";
+const CACHE_NAME = "little-oracle-v43-night-ink";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./admin.html",
-  "./styles.css?v=update-prompt-20260901",
-  "./admin.css?v=update-prompt-20260901",
-  "./app.js?v=update-prompt-20260901",
+  "./styles.css?v=night-ink-20260903",
+  "./admin.css?v=night-ink-20260903",
+  "./app.js?v=night-ink-20260903",
   "./assets/fonts/jinmei-doudou.ttf",
   "./assets/fonts/guaiguai.ttf",
-  "./admin.js?v=update-prompt-20260901",
+  "./admin.js?v=night-ink-20260903",
   "./manifest.webmanifest",
   "./admin.webmanifest",
   "./icon-192.png",

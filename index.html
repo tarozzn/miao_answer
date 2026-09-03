@@ -6,14 +6,20 @@
     <meta name="theme-color" content="#c8f3f1" />
     <meta name="description" content="一个给某只猪使用的专属玄学答疑小程序。" />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./styles.css?v=update-prompt-20260901" />
+    <link rel="stylesheet" href="./styles.css?v=night-ink-20260903" />
     <title>咪的答案</title>
   </head>
   <body>
     <main class="app-shell" aria-label="咪的答案">
       <section class="topbar">
+        <div class="night-sky" aria-hidden="true">
+          <span class="moon"></span>
+          <span class="shooting-star one"></span>
+          <span class="shooting-star two"></span>
+        </div>
         <div class="brand-duo" aria-hidden="true">
           <span class="brand-mark rabbit-mark">
+            <span class="sleep-hat"></span>
             <span class="ear ear-left"></span>
             <span class="ear ear-right"></span>
             <span class="face">
@@ -24,6 +30,7 @@
             </span>
           </span>
           <span class="brand-mark cat-mark">
+            <span class="sleep-hat"></span>
             <span class="cat-ear cat-ear-left"></span>
             <span class="cat-ear cat-ear-right"></span>
             <span class="cat-face">
@@ -48,8 +55,12 @@
           </p>
         </div>
         <div class="top-actions">
-          <button id="favoriteButton" class="icon-button" type="button" aria-label="查看已收藏答案">♡</button>
-          <button id="settingsButton" class="icon-button" type="button" aria-label="个人设置">⚙</button>
+          <button id="favoriteButton" class="icon-button" type="button" aria-label="查看已收藏答案" data-tooltip="收藏">
+            <span aria-hidden="true">♡</span>
+          </button>
+          <button id="settingsButton" class="icon-button" type="button" aria-label="个人设置" data-tooltip="设置">
+            <span aria-hidden="true">⚙</span>
+          </button>
         </div>
       </section>
 
@@ -58,6 +69,29 @@
         <div class="spark spark-two"></div>
         <div class="welcome-line">
           嘛哩嘛哩哄，怪力乱神已上线，某只猪请提问
+        </div>
+        <div id="visitCharm" class="visit-charm" hidden></div>
+        <div class="ritual-dock" aria-label="小猪能量和问题漂流瓶">
+          <button id="energyBottle" class="energy-bottle" type="button" aria-label="查看小猪能量瓶">
+            <span class="bottle-jar" aria-hidden="true">
+              <span id="energyFill" class="bottle-fill"></span>
+              <span class="bottle-spark one">✦</span>
+              <span class="bottle-spark two">♡</span>
+            </span>
+            <span class="bottle-copy">
+              <strong>小猪能量瓶</strong>
+              <small id="energyText">正在蓄能</small>
+            </span>
+          </button>
+          <button id="wishBottleButton" class="wish-bottle-button" type="button" aria-label="打开问题漂流瓶">
+            <span aria-hidden="true">≈</span>
+            <span>问题瓶</span>
+          </button>
+        </div>
+        <div id="secretNote" class="secret-note" hidden>
+          <span class="secret-note-pin" aria-hidden="true">✦</span>
+          <p id="secretNoteText"></p>
+          <button id="closeSecretNote" type="button" aria-label="收起秘密小纸条">收好</button>
         </div>
         <div id="messages" class="messages">
         </div>
@@ -106,7 +140,12 @@
             昵称
             <input id="nicknameInput" type="text" maxlength="18" placeholder="比如：某只猪" />
           </label>
+          <label id="resetSecretField" hidden>
+            大白菜骨头汤的出生年份和地点是？（中间用空格隔开）
+            <input id="resetSecretInput" type="text" autocomplete="off" placeholder="比如：年份 地点" />
+          </label>
           <button id="authSubmit" type="submit">登录</button>
+          <button id="forgotPasswordButton" class="text-button" type="button">忘记密码</button>
         </form>
       </div>
     </section>
@@ -149,12 +188,62 @@
       </div>
     </section>
 
+    <section id="favoriteReminderModal" class="modal-layer gentle-layer" aria-label="收藏提醒" hidden>
+      <div class="modal-card reminder-card">
+        <h2>小猪猪认真听讲</h2>
+        <p>
+          今天抽到喜欢的答案，要及时点答案旁边的小爱心收藏哦。不然明天兔兔占卜师会把聊天纸条收走，只把宝贝签文留在收藏夹里。
+        </p>
+        <label class="reminder-check">
+          <input id="favoriteReminderMute" type="checkbox" />
+          本猪晓得了，七天之内不再提醒我
+        </label>
+        <button id="favoriteReminderOk" class="ghost-button" type="button">晓得啦</button>
+      </div>
+    </section>
+
+    <section id="energyRewardModal" class="modal-layer gentle-layer" aria-label="小猪能量奖励" hidden>
+      <div class="modal-card reward-card">
+        <h2>能量瓶满啦</h2>
+        <p id="energyRewardText"></p>
+        <button id="closeEnergyReward" class="ghost-button" type="button">收下奖励</button>
+      </div>
+    </section>
+
+    <section id="wishModal" class="modal-layer gentle-layer" aria-label="问题漂流瓶" hidden>
+      <div class="modal-card wish-card">
+        <button id="closeWishModal" class="close-button" type="button" aria-label="关闭">×</button>
+        <h2>问题漂流瓶</h2>
+        <p class="tiny-note">把暂时不想立刻回答的问题放进瓶子里。什么时候想知道答案了，就点开那张纸条交给兔兔占卜师。</p>
+        <form id="wishForm" class="stack-form">
+          <label>
+            暂存问题纸条
+            <textarea id="wishInput" maxlength="120" placeholder="某只猪想先把什么问题放进瓶子呀..."></textarea>
+          </label>
+          <button type="submit">暂时放进瓶子</button>
+        </form>
+        <button id="drawWishButton" class="ghost-button wish-draw-button" type="button">让问题纸条浮出来</button>
+        <div id="wishFloatArea" class="wish-float-area" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <section id="wishConfirmModal" class="modal-layer gentle-layer" aria-label="确认回答暂存问题" hidden>
+      <div class="modal-card wish-confirm-card">
+        <h2>要回答这张纸条吗</h2>
+        <p id="wishConfirmText"></p>
+        <div class="confirm-actions">
+          <button id="cancelWishAnswer" class="ghost-button" type="button">先放回瓶子</button>
+          <button id="confirmWishAnswer" class="ghost-button primary" type="button">让兔兔回答</button>
+        </div>
+      </div>
+    </section>
+
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
     <div id="updatePrompt" class="update-prompt" role="status" hidden>
       <span>发现新版本啦，兔兔占卜师换了新魔法。</span>
       <button id="updateButton" type="button">马上更新</button>
     </div>
 
-    <script defer src="./app.js?v=update-prompt-20260901"></script>
+    <script defer src="./app.js?v=night-ink-20260903"></script>
   </body>
 </html>
