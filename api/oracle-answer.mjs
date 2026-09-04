@@ -16,6 +16,7 @@ export default async function handler(req, res) {
 
     let answer = getFallbackAnswer(mood);
     let user = null;
+    const signNumber = Math.floor(Math.random() * 412) + 1;
 
     if (hasDatabase()) {
       user = await getSessionUser(req);
@@ -28,12 +29,13 @@ export default async function handler(req, res) {
       }
 
       if (user && question) {
+        const responseText = `第 ${signNumber} 签：${answer.text}`;
         await supabase("question_logs", {
           method: "POST",
           body: JSON.stringify({
             user_id: user.id,
             question,
-            answer_text: answer.text,
+            answer_text: responseText,
             answer_id: answer.id || null,
             mood,
           }),
@@ -41,7 +43,6 @@ export default async function handler(req, res) {
       }
     }
 
-    const signNumber = Math.floor(Math.random() * 412) + 1;
     send(res, 200, { text: `第 ${signNumber} 签：${answer.text}`, mood, signNumber });
   } catch (error) {
     send(res, 500, { error: error.message || "抽签失败" });
