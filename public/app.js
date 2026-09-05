@@ -925,7 +925,7 @@ const SECRET_NOTE_KEY = "little-oracle-secret-note";
 const ENERGY_BOTTLE_KEY = "little-oracle-energy-bottle";
 const WISHES_KEY = "little-oracle-wishes";
 const UPDATE_SEEN_KEY = "little-oracle-update-seen-version";
-const APP_VERSION_CODE = 2026090307;
+const APP_VERSION_CODE = 2026090501;
 const SESSION_DAYS = 7;
 const SESSION_MS = SESSION_DAYS * 24 * 60 * 60 * 1000;
 const ENERGY_GOAL = 100;
@@ -985,7 +985,7 @@ let databaseConfigured = true;
 let authMode = "login";
 let latestAnswer = "";
 let latestQuestion = "";
-let cloudStateHydrating = false;
+let cloudFavorites = [];
 
 async function apiRequest(path, options = {}) {
   const response = await fetch(path, {
@@ -1329,7 +1329,9 @@ function addMessage(messages, text, sender, options = {}) {
     const favorite = document.createElement("button");
     favorite.className = "message-favorite";
     favorite.type = "button";
-    const existingFavorite = findLocalFavorite(favoriteRecord);
+    favorite.dataset.answerText = favoriteRecord.answerText;
+    favorite.dataset.question = favoriteRecord.question;
+    const existingFavorite = findSavedFavorite(favoriteRecord);
     if (existingFavorite) {
       favorite.classList.add("is-saved");
       favorite.textContent = "♥";
@@ -1510,23 +1512,8 @@ function readJsonStorage(key, fallback) {
   }
 }
 
-function canSyncCloudState() {
-  return Boolean(databaseConfigured && currentUser && !currentUser.localOnly);
-}
-
 function writeJsonStorage(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
-}
-
-function syncCloudState(partialState) {
-  if (!canSyncCloudState() || cloudStateHydrating) {
-    return;
-  }
-
-  apiRequest("./api/user-state", {
-    method: "PATCH",
-    body: JSON.stringify(partialState),
-  }).catch(() => {});
 }
 
 function getDailyChatMessages() {
@@ -1537,13 +1524,6 @@ function getDailyChatMessages() {
   }
 
   return saved.messages;
-}
-
-function setDailyChatMessages(messages) {
-  writeJsonStorage(DAILY_CHAT_KEY, {
-    dateKey: getTodayKey(),
-    messages: messages.slice(-80),
-  });
 }
 
 function saveDailyChatMessage(message) {
@@ -1581,165 +1561,109 @@ function restoreDailyChat(messages) {
   return true;
 }
 
-function renderChatMessages(messages, savedMessages) {
+function cacheDailyChatMessages(nextMessages) {
+  writeJsonStorage(DAILY_CHAT_KEY, {
+    dateKey: getTodayKey(),
+    messages: nextMessages.slice(-80),
+  });
+}
+
+function renderCloudTodayLogs(messages, logs) {
+  if (!Array.isArray(logs) || !logs.length) {
+    return false;
+  }
+
+  const chatMessages = [];
   messages.textContent = "";
-  savedMessages.forEach((message) => {
-    if (!message?.text || !message?.sender) {
-      return;
-    }
-    addMessage(messages, message.text, message.sender, {
-      favoritable: Boolean(message.favoritable),
-      echoable: Boolean(message.echoable),
-      question: message.question || "",
-      createdAt: message.createdAt || message.created_at,
-      inkReveal: false,
-      persist: false,
-    });
-  });
-}
 
-function mergeVisitState(localVisit, cloudVisit) {
-  const today = getIsoDateKey();
-  const yesterday = getYesterdayIsoKey();
-  const localStreak = Number(localVisit?.streak || 0);
-  const cloudStreak = Number(cloudVisit?.streak || 0);
+  logs.forEach((log) => {
+    const question = String(log.question || "").trim();
+    const answer = String(log.answer_text || "").trim();
+    const createdAt = log.created_at || new Date().toISOString();
 
-  if (cloudVisit?.lastVisit === today) {
-    return { lastVisit: today, streak: Math.max(cloudStreak, localStreak, 1) };
-  }
-
-  if (localVisit?.lastVisit === today && cloudVisit?.lastVisit === yesterday) {
-    return { lastVisit: today, streak: Math.max(localStreak, cloudStreak + 1, 1) };
-  }
-
-  if (localVisit?.lastVisit === today) {
-    return { lastVisit: today, streak: Math.max(localStreak, 1) };
-  }
-
-  if (cloudVisit?.lastVisit) {
-    return {
-      lastVisit: cloudVisit.lastVisit,
-      streak: Math.max(cloudStreak, 1),
-    };
-  }
-
-  return localVisit || {};
-}
-
-function mergeWishes(localWishes, cloudWishes) {
-  const byKey = new Map();
-  [...cloudWishes, ...localWishes].forEach((wish) => {
-    if (!wish?.text) return;
-    const key = wish.id || `${wish.text}-${wish.createdAt || ""}`;
-    byKey.set(key, {
-      id: String(wish.id || key),
-      text: String(wish.text).slice(0, 120),
-      createdAt: wish.createdAt || new Date().toISOString(),
-    });
-  });
-  return [...byKey.values()]
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, 30);
-}
-
-async function hydrateCloudState() {
-  if (!canSyncCloudState()) {
-    return;
-  }
-
-  cloudStateHydrating = true;
-  try {
-    const data = await apiRequest("./api/user-state");
-    const localVisit = readJsonStorage(VISIT_STREAK_KEY, {});
-    const cloudVisit = data.visitState || {};
-    const mergedVisit = mergeVisitState(localVisit, cloudVisit);
-    const cloudEnergy = data.energyState || {};
-    const localWishes = getWishes();
-    const cloudWishes = Array.isArray(data.wishes) ? data.wishes : [];
-    const mergedWishes = mergeWishes(localWishes, cloudWishes);
-
-    if (mergedVisit.lastVisit) {
-      writeJsonStorage(VISIT_STREAK_KEY, mergedVisit);
-    }
-    if (Object.keys(cloudEnergy).length) {
-      writeJsonStorage(ENERGY_BOTTLE_KEY, cloudEnergy);
-    }
-    writeJsonStorage(WISHES_KEY, mergedWishes);
-
-    cloudStateHydrating = false;
-    const charm = document.querySelector("#visitCharm");
-    if (charm && mergedVisit.streak) {
-      charm.hidden = false;
-      charm.textContent =
-        Number(mergedVisit.streak) > 1
-          ? `某只猪连续第 ${mergedVisit.streak} 天拜访兔兔占卜师，今日好运已偷偷续杯`
-          : "某只猪今天第一次拜访兔兔占卜师，已经盖上小爪印";
-    }
-    const cloudNeedsTodayCharge = cloudVisit.lastVisit !== getIsoDateKey() && mergedVisit.lastVisit === getIsoDateKey();
-    updateEnergyBottle(Number(mergedVisit.streak || 1), cloudNeedsTodayCharge);
-    syncCloudState({
-      visitState: mergedVisit,
-      energyState: readJsonStorage(ENERGY_BOTTLE_KEY, {}),
-      wishes: mergedWishes,
-    });
-
-    const area = document.querySelector("#wishFloatArea");
-    if (area && !document.querySelector("#wishModal")?.hidden) {
-      renderStoredQuestionPapers(area);
-    }
-  } catch (error) {
-    cloudStateHydrating = false;
-  }
-}
-
-async function hydrateTodayLogs(messages) {
-  if (!canSyncCloudState() || !messages) {
-    return;
-  }
-
-  try {
-    const data = await apiRequest("./api/today-logs");
-    const logs = Array.isArray(data.logs) ? data.logs : [];
-    if (!logs.length) {
-      return;
-    }
-
-    const cloudMessages = [
-      {
-        sender: "bot",
-        text: pickOpeningLine(),
-        createdAt: logs[0].created_at,
-      },
-    ];
-    logs.forEach((log) => {
-      cloudMessages.push({
+    if (question) {
+      chatMessages.push({
         sender: "user",
-        text: log.question,
-        createdAt: log.created_at,
+        text: question,
+        favoritable: false,
+        echoable: false,
+        question: "",
+        createdAt,
       });
-      cloudMessages.push({
+      addMessage(messages, question, "user", {
+        createdAt,
+        persist: false,
+      });
+    }
+
+    if (answer) {
+      chatMessages.push({
         sender: "bot",
-        text: log.answer_text,
+        text: answer,
         favoritable: true,
         echoable: true,
-        question: log.question,
-        createdAt: log.created_at,
+        question,
+        createdAt,
       });
-    });
-
-    const localUsefulCount = getDailyChatMessages().filter((message) => message.sender === "user").length;
-    if (logs.length <= localUsefulCount) {
-      return;
+      addMessage(messages, answer, "bot", {
+        favoritable: true,
+        echoable: true,
+        question,
+        createdAt,
+        inkReveal: false,
+        persist: false,
+      });
     }
+  });
 
-    setDailyChatMessages(cloudMessages);
-    renderChatMessages(messages, cloudMessages);
-  } catch (error) {}
+  cacheDailyChatMessages(chatMessages);
+  return true;
 }
 
 async function hydrateCloudExperience(messages) {
-  await hydrateCloudState();
-  await hydrateTodayLogs(messages);
+  if (!currentUser || !databaseConfigured) {
+    return;
+  }
+
+  const [stateResult, logsResult, favoritesResult] = await Promise.allSettled([
+    apiRequest("./api/user-state"),
+    apiRequest("./api/today-logs"),
+    apiRequest("./api/favorites"),
+  ]);
+
+  if (stateResult.status === "fulfilled" && stateResult.value.configured !== false) {
+    if (stateResult.value.visitState) {
+      writeJsonStorage(VISIT_STREAK_KEY, stateResult.value.visitState);
+    }
+    if (stateResult.value.energyState) {
+      writeJsonStorage(ENERGY_BOTTLE_KEY, stateResult.value.energyState);
+    }
+    if (Array.isArray(stateResult.value.wishes)) {
+      writeJsonStorage(WISHES_KEY, stateResult.value.wishes);
+    }
+  }
+
+  if (favoritesResult.status === "fulfilled" && favoritesResult.value.configured !== false) {
+    setCloudFavorites(favoritesResult.value.favorites || []);
+  }
+
+  if (logsResult.status === "fulfilled" && logsResult.value.configured !== false) {
+    const hasCloudLogs = renderCloudTodayLogs(messages, logsResult.value.logs || []);
+    if (!hasCloudLogs && !getDailyChatMessages().length) {
+      addMessage(messages, pickOpeningLine(), "bot");
+    }
+  }
+}
+
+function syncCloudState(patch) {
+  if (!currentUser || !databaseConfigured || currentUser.localOnly) {
+    return;
+  }
+
+  apiRequest("./api/user-state", {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  }).catch(() => {});
 }
 
 function updateVisitStreak() {
@@ -1760,12 +1684,6 @@ function updateVisitStreak() {
       streak: nextStreak,
     }),
   );
-  syncCloudState({
-    visitState: {
-      lastVisit: today,
-      streak: nextStreak,
-    },
-  });
   return { streak: nextStreak, isNewVisit: true };
 }
 
@@ -2241,6 +2159,13 @@ function getLocalFavorites() {
   return JSON.parse(localStorage.getItem("little-oracle-favorites") || "[]");
 }
 
+function setCloudFavorites(favorites) {
+  cloudFavorites = Array.isArray(favorites) ? favorites : [];
+  localStorage.setItem("little-oracle-favorites", JSON.stringify(cloudFavorites));
+  renderFavorites(cloudFavorites);
+  refreshFavoriteButtons();
+}
+
 function getFavoriteAnswer(favorite) {
   return favorite.answer_text || favorite.answerText || "";
 }
@@ -2256,6 +2181,28 @@ function getFavoriteKey(favorite) {
 function findLocalFavorite(favorite) {
   const key = getFavoriteKey(favorite);
   return getLocalFavorites().find((item) => getFavoriteKey(item) === key);
+}
+
+function findCloudFavorite(favorite) {
+  const key = getFavoriteKey(favorite);
+  return cloudFavorites.find((item) => getFavoriteKey(item) === key);
+}
+
+function findSavedFavorite(favorite) {
+  return findCloudFavorite(favorite) || findLocalFavorite(favorite);
+}
+
+function refreshFavoriteButtons() {
+  document.querySelectorAll(".message-favorite").forEach((button) => {
+    const favoriteRecord = {
+      answerText: button.dataset.answerText || "",
+      question: button.dataset.question || "",
+    };
+    const isSaved = Boolean(findSavedFavorite(favoriteRecord));
+    button.classList.toggle("is-saved", isSaved);
+    button.textContent = isSaved ? "♥" : "♡";
+    button.setAttribute("aria-label", isSaved ? "取消收藏这条答案" : "收藏这条答案");
+  });
 }
 
 function saveLocalFavorite(favorite) {
@@ -2321,7 +2268,11 @@ function renderFavorites(favorites = getLocalFavorites()) {
 async function loadFavorites() {
   try {
     const data = await apiRequest("./api/favorites");
-    renderFavorites(data.configured === false ? getLocalFavorites() : data.favorites || []);
+    if (data.configured === false) {
+      renderFavorites(getLocalFavorites());
+      return;
+    }
+    setCloudFavorites(data.favorites || []);
   } catch (error) {
     renderFavorites(getLocalFavorites());
   }
@@ -2414,23 +2365,27 @@ async function saveFavorite(favorite, control) {
   renderFavorites();
   showToast("收藏好啦。");
 
-  await apiRequest("./api/favorites", {
+  const data = await apiRequest("./api/favorites", {
     method: "POST",
     body: JSON.stringify(favorite),
-  }).catch(() => {});
+  }).catch(() => null);
+  if (data?.favorite) {
+    setCloudFavorites([data.favorite, ...cloudFavorites.filter((item) => getFavoriteKey(item) !== getFavoriteKey(favorite))]);
+  }
 
   return storedFavorite;
 }
 
 async function removeFavorite(favorite, control) {
-  const storedFavorite = findLocalFavorite(favorite) || favorite;
+  const storedFavorite = findSavedFavorite(favorite) || favorite;
   removeLocalFavorite(favorite);
+  cloudFavorites = cloudFavorites.filter((item) => getFavoriteKey(item) !== getFavoriteKey(favorite));
   control?.classList.remove("is-saved");
   if (control?.classList.contains("message-favorite")) {
     control.textContent = "♡";
     control.setAttribute("aria-label", "收藏这条答案");
   }
-  renderFavorites();
+  renderFavorites(cloudFavorites.length ? cloudFavorites : getLocalFavorites());
   showToast("已经取消收藏啦。");
 
   await apiRequest("./api/favorites", {
