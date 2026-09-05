@@ -1,14 +1,14 @@
-const CACHE_NAME = "little-oracle-v52-cloud-state";
+const CACHE_NAME = "little-oracle-v53-cloud-hydration";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./admin.html",
-  "./styles.css?v=cloud-state-20260903",
-  "./admin.css?v=cloud-state-20260903",
-  "./app.js?v=cloud-state-20260903",
+  "./styles.css?v=cloud-hydration-20260905",
+  "./admin.css?v=cloud-hydration-20260905",
+  "./app.js?v=cloud-hydration-20260905",
   "./assets/fonts/jinmei-doudou.ttf",
   "./assets/fonts/guaiguai.ttf",
-  "./admin.js?v=cloud-state-20260903",
+  "./admin.js?v=cloud-hydration-20260905",
   "./manifest.webmanifest",
   "./version.json",
   "./admin.webmanifest",
