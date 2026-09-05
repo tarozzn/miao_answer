@@ -925,7 +925,7 @@ const SECRET_NOTE_KEY = "little-oracle-secret-note";
 const ENERGY_BOTTLE_KEY = "little-oracle-energy-bottle";
 const WISHES_KEY = "little-oracle-wishes";
 const UPDATE_SEEN_KEY = "little-oracle-update-seen-version";
-const APP_VERSION_CODE = 2026090501;
+const APP_VERSION_CODE = 2026090502;
 const SESSION_DAYS = 7;
 const SESSION_MS = SESSION_DAYS * 24 * 60 * 60 * 1000;
 const ENERGY_GOAL = 100;
@@ -1633,14 +1633,19 @@ async function hydrateCloudExperience(messages) {
 
   if (stateResult.status === "fulfilled" && stateResult.value.configured !== false) {
     if (stateResult.value.visitState) {
-      writeJsonStorage(VISIT_STREAK_KEY, stateResult.value.visitState);
+      const visitState = mergeVisitState(readJsonStorage(VISIT_STREAK_KEY, {}), stateResult.value.visitState);
+      writeJsonStorage(VISIT_STREAK_KEY, visitState);
+      syncCloudState({ visitState });
     }
     if (stateResult.value.energyState) {
-      writeJsonStorage(ENERGY_BOTTLE_KEY, stateResult.value.energyState);
+      const energyState = mergeEnergyState(readJsonStorage(ENERGY_BOTTLE_KEY, {}), stateResult.value.energyState);
+      writeJsonStorage(ENERGY_BOTTLE_KEY, energyState);
+      syncCloudState({ energyState });
     }
     if (Array.isArray(stateResult.value.wishes)) {
       writeJsonStorage(WISHES_KEY, stateResult.value.wishes);
     }
+    initVisitRitual();
   }
 
   if (favoritesResult.status === "fulfilled" && favoritesResult.value.configured !== false) {
@@ -1664,6 +1669,36 @@ function syncCloudState(patch) {
     method: "PATCH",
     body: JSON.stringify(patch),
   }).catch(() => {});
+}
+
+function mergeVisitState(localState, cloudState) {
+  const today = getIsoDateKey();
+  const local = localState && typeof localState === "object" ? localState : {};
+  const cloud = cloudState && typeof cloudState === "object" ? cloudState : {};
+
+  if (local.lastVisit === today && cloud.lastVisit !== today) {
+    return local;
+  }
+  if (cloud.lastVisit === today && local.lastVisit !== today) {
+    return cloud;
+  }
+  if (local.lastVisit === cloud.lastVisit) {
+    return Number(local.streak || 0) >= Number(cloud.streak || 0) ? local : cloud;
+  }
+
+  return cloud.lastVisit ? cloud : local;
+}
+
+function mergeEnergyState(localState, cloudState) {
+  const today = getIsoDateKey();
+  const local = localState && typeof localState === "object" ? localState : {};
+  const cloud = cloudState && typeof cloudState === "object" ? cloudState : {};
+
+  if (local.lastCharged === today && cloud.lastCharged !== today) {
+    return local;
+  }
+
+  return Object.keys(cloud).length ? cloud : local;
 }
 
 function updateVisitStreak() {
@@ -1690,6 +1725,7 @@ function updateVisitStreak() {
 function initVisitRitual() {
   const visit = updateVisitStreak();
   const { streak } = visit;
+  const visitState = readJsonStorage(VISIT_STREAK_KEY, {});
   const charm = document.querySelector("#visitCharm");
   const secretNote = document.querySelector("#secretNote");
   const secretText = document.querySelector("#secretNoteText");
@@ -1724,6 +1760,7 @@ function initVisitRitual() {
     }
   });
 
+  syncCloudState({ visitState });
   updateEnergyBottle(streak, visit.isNewVisit);
 }
 

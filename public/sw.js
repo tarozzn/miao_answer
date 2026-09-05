@@ -1,14 +1,14 @@
-const CACHE_NAME = "little-oracle-v53-cloud-hydration";
+const CACHE_NAME = "little-oracle-v54-visit-streak-sync";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./admin.html",
-  "./styles.css?v=cloud-hydration-20260905",
-  "./admin.css?v=cloud-hydration-20260905",
-  "./app.js?v=cloud-hydration-20260905",
+  "./styles.css?v=visit-streak-sync-20260905",
+  "./admin.css?v=visit-streak-sync-20260905",
+  "./app.js?v=visit-streak-sync-20260905",
   "./assets/fonts/jinmei-doudou.ttf",
   "./assets/fonts/guaiguai.ttf",
-  "./admin.js?v=cloud-hydration-20260905",
+  "./admin.js?v=visit-streak-sync-20260905",
   "./manifest.webmanifest",
   "./version.json",
   "./admin.webmanifest",
